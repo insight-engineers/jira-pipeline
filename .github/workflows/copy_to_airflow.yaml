@@ -1,0 +1,40 @@
+name: Copy to Airflow
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  copy_to_airflow:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies and remove current .git folder
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git-all
+        rm -rf .git
+
+    - name: Copy file to Airflow server
+      env:
+      GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+      run: |
+        # config as github action bot
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+
+        # clone and copy dag to airflow dag repo using token
+        git clone https://github.com/insight-engineers/airflow-dag-repo.git /tmp/airflow-dag-repo
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_PAT }}@github.com/insight-engineers/airflow-dag-repo.git
+
+        cp dags/* /tmp/airflow-dag-repo/dags/
+        cd /tmp/airflow-dag-repo
+
+        # commit and push
+        git add dags/
+        git commit -m "feat: add new dag by ${{ github.actor }} with commit sha ${{ github.sha }}"
+        git pull --rebase
+        git push origin main
