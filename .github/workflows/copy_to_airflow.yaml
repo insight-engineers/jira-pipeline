@@ -2,7 +2,9 @@ name: Copy to Airflow
 
 on:
   push:
-    branches: ["prod"]
+    branches: ["main"]
+    paths:
+      - jira_dag.py
 
 jobs:
   copy_to_airflow:
@@ -24,7 +26,7 @@ jobs:
         # clone and copy dag to airflow dag repo using token
         git clone https://x-access-token:${{ env.GITHUB_PAT }}@github.com/insight-engineers/airflow-dag-repo.git /tmp/airflow-dag-repo
 
-        cp dags/* /tmp/airflow-dag-repo/dags/
+        cp jira_dag.py /tmp/airflow-dag-repo/dags/
         cd /tmp/airflow-dag-repo
 
         # commit and push
