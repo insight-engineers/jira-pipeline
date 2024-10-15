@@ -1,16 +1,9 @@
 import os
 import pandas as pd
 from datetime import datetime
+from dotenv import load_dotenv
 import json
-import time
 
-time.sleep(3)
-
-output_dir = os.getenv('OUTPUT_DIR', os.getcwd())
-csv_filename = os.path.join(output_dir, f'test_{datetime.now().strftime("%Y-%m-%d")}.csv')
-df = pd.read_csv(csv_filename)
-
-df['description'] = df['description'].apply(lambda x: x.replace("'", '"') if isinstance(x, str) else x)
 
 def parse_json(description):
     if isinstance(description, str):  
@@ -21,26 +14,31 @@ def parse_json(description):
     return None 
 
 
-df['description'] = df['description'].apply(parse_json)
-
 # Transform cột description 
 def extract_text_from_description(description):
     result = []
-    if description and 'content' in description:
-   
-        for item in description['content']:
-            # Kiểm tra nếu là một bullet list
-            if item.get('type') == 'bulletList' and 'content' in item:
+
+    def parse_content(content):
+        for item in content:
+            # Handle text content inside paragraphs
+            if item.get('type') == 'paragraph' and 'content' in item:
+                for text_item in item['content']:
+                    if text_item.get('type') == 'text' and 'text' in text_item:
+                        result.append(text_item['text'])
+                    elif text_item.get('type') == 'inlineCard' and 'attrs' in text_item and 'url' in text_item['attrs']:
+                        result.append(text_item['attrs']['url'])  # Append URL inline
+            # Handle bullet list
+            elif item.get('type') == 'bulletList' and 'content' in item:
                 for sub_item in item['content']:
-                    
                     if sub_item.get('type') == 'listItem' and 'content' in sub_item:
-                        for sub_sub_item in sub_item['content']:
-                    
-                            if sub_sub_item.get('type') == 'paragraph' and 'content' in sub_sub_item:
-                                for text_item in sub_sub_item['content']:
-                                    
-                                    if text_item.get('type') == 'text' and 'text' in text_item:
-                                        result.append(text_item['text'])
+                        parse_content(sub_item['content'])  # Recursively parse list items
+            # Handle inlineCard directly in the content
+            elif item.get('type') == 'inlineCard' and 'attrs' in item and 'url' in item['attrs']:
+                result.append(item['attrs']['url'])  # Append URL inline
+
+    if description and 'content' in description:
+        parse_content(description['content'])
+
     return '\n'.join(result)
 
 # Chuyển đổi kiểu dữ liệu
@@ -88,8 +86,21 @@ def reorder_columns(df):
     df = df[column_order]
     return df
 
-df = convert_data_types(df)
-df['description'] = df['description'].apply(extract_text_from_description)
-df = rename_columns(df)
-df = reorder_columns(df)
-df.to_parquet(os.path.join(output_dir, f'test_{datetime.now().strftime("%Y-%m-%d")}.parquet'), index=False)
+def main(): 
+    load_dotenv()
+    output_dir = os.getenv('OUTPUT_DIR', os.getcwd())
+    csv_filename = os.path.join(output_dir, f'test_{datetime.now().strftime("%Y-%m-%d")}.csv')
+    df = pd.read_csv(csv_filename)
+
+    df['description'] = df['description'].apply(lambda x: x.replace("'", '"') if isinstance(x, str) else x)
+
+    df['description'] = df['description'].apply(parse_json)
+    
+    df = convert_data_types(df)
+    df['description'] = df['description'].apply(extract_text_from_description)
+    df = rename_columns(df)
+    df = reorder_columns(df)
+    df.to_parquet(os.path.join(output_dir, f'test_{datetime.now().strftime("%Y-%m-%d")}.parquet'), index=False)
+
+if __name__ == '__main__':
+    main()
