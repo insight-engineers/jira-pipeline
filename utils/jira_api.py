@@ -50,11 +50,18 @@ class JiraProject:
         self.url = f"{project_site}/rest/api/3/search?jql=project={project_key}"
         self.issues = []
 
+    def fetch_raw_issues(self):
+        response = requests.get(self.url, headers=self.headers, auth=self.auth)
+        return response.json().get('issues', [])
+
     def fetch_issues(self):
         response = requests.get(self.url, headers=self.headers, auth=self.auth)
         issues_data = response.json().get('issues', [])
         self.issues = [JiraIssue(issue, self.project_site) for issue in issues_data]
 
+    def to_list(self):
+        return [issue.to_dict() for issue in self.issues]
+    
     def to_dataframe(self):
         rows = [issue.to_dict() for issue in self.issues]
         df = pd.DataFrame(rows)
